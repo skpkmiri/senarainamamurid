@@ -1,326 +1,255 @@
-import React, { useState, useEffect, useMemo } from 'react';
+<!DOCTYPE html>
+<html lang="ms">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistem Maklumat Murid HEM - SKPK Miri</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .scrollbar-hide::-webkit-scrollbar { display: none; }
+        .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
 
-// Fungsi bantuan untuk membaca (parse) format CSV dari Google Sheets
-const parseCSV = (str) => {
-  const arr = [];
-  let quote = false;
-  let row = 0, col = 0;
-  for (let c = 0; c < str.length; c++) {
-    let cc = str[c], nc = str[c+1];
-    arr[row] = arr[row] || [];
-    arr[row][col] = arr[row][col] || '';
-    if (cc === '"' && quote && nc === '"') { arr[row][col] += cc; ++c; continue; }
-    if (cc === '"') { quote = !quote; continue; }
-    if (cc === ',' && !quote) { ++col; continue; }
-    if (cc === '\r' && nc === '\n' && !quote) { ++row; col = 0; ++c; continue; }
-    if (cc === '\n' && !quote) { ++row; col = 0; continue; }
-    if (cc === '\r' && !quote) { ++row; col = 0; continue; }
-    arr[row][col] += cc;
-  }
-  return arr.filter(row => row.length > 0 && row.some(cell => cell.trim() !== '')); 
-};
-
-export default function App() {
-  const [students, setStudents] = useState([]);
-  const [isLoading, setIsLoading] = useState(true);
-  const [errorMsg, setErrorMsg] = useState(null);
-  const [selectedClassMenu, setSelectedClassMenu] = useState("Semua Kelas");
-
-  // Ambil data dari Google Sheets (CSV)
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRiXe9TdBW-DC6ZR4CI73lEfF6mD6o4mcbeZJ8LjemodSsnaxE8cswYIzJzZvf9yO5VmerrGj3r-mRQ/pub?gid=1679449775&single=true&output=csv";
-        const response = await fetch(url);
-        
-        if (!response.ok) {
-          throw new Error("Gagal menyambung ke pangkalan data Google Sheets.");
-        }
-        
-        const csvText = await response.text();
-        const parsedRows = parseCSV(csvText);
-
-        if (parsedRows.length > 1) {
-          const headers = parsedRows[0].map(h => h.toLowerCase().trim());
-          
-          const findIdx = (keywords) => {
-            const idx = headers.findIndex(h => keywords.some(kw => h.includes(kw)));
-            return idx !== -1 ? idx : null;
-          };
-
-          const idxNama = findIdx(['nama']);
-          const idxKelas = findIdx(['kelas', 'tingkatan', 'tahun']);
-          const idxTarikhLahir = findIdx(['tarikh', 'lahir', 'dob']);
-          const idxJantina = findIdx(['jantina', 'jantina murid']);
-          const idxAgama = findIdx(['agama']);
-          const idxKaum = findIdx(['kaum', 'bangsa']);
-          const idxKategori = findIdx(['kategori', 'ketidakupayaan', 'oku']);
-          const idxSubkategori = findIdx(['subkategori', 'sub']);
-
-          const formattedData = parsedRows.slice(1).map((row, index) => ({
-            id: index,
-            nama: idxNama !== null && row[idxNama] ? row[idxNama].trim() : "-",
-            kelas: idxKelas !== null && row[idxKelas] ? row[idxKelas].trim() : "Tiada Kelas",
-            tarikhLahir: idxTarikhLahir !== null && row[idxTarikhLahir] ? row[idxTarikhLahir].trim() : "-",
-            jantina: idxJantina !== null && row[idxJantina] ? row[idxJantina].trim() : "-",
-            agama: idxAgama !== null && row[idxAgama] ? row[idxAgama].trim() : "-",
-            kaum: idxKaum !== null && row[idxKaum] ? row[idxKaum].trim() : "-",
-            kategori: idxKategori !== null && row[idxKategori] ? row[idxKategori].trim() : "Tiada",
-            subkategori: idxSubkategori !== null && row[idxSubkategori] ? row[idxSubkategori].trim() : "Tiada"
-          }));
-          
-          const validStudents = formattedData.filter(student => student.nama !== "-" && student.nama !== "");
-          setStudents(validStudents);
-        } else {
-          setStudents([]);
-        }
-      } catch (err) {
-        setErrorMsg(err.message);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
-  const senaraiKelas = useMemo(() => ["Semua Kelas", ...new Set(students.map(s => s.kelas).filter(Boolean))].sort(), [students]);
-
-  const handleClassMenuClick = (kelas) => {
-    setSelectedClassMenu(kelas);
-  };
-
-  const filteredStudents = useMemo(() => {
-    return students.filter(student => {
-      return selectedClassMenu === "Semua Kelas" || student.kelas === selectedClassMenu;
-    });
-  }, [students, selectedClassMenu]);
-
-  const handlePrint = () => {
-    window.print();
-  };
-
-  if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-50 font-sans">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-lg font-medium text-slate-700">Sedang memuat data murid...</p>
-        </div>
-      </div>
-    );
-  }
-
-  if (errorMsg) {
-    return (
-      <div className="flex h-screen items-center justify-center bg-slate-50 font-sans">
-        <div className="text-center max-w-md p-6 bg-white rounded-xl shadow-md border border-rose-100">
-          <div className="text-rose-500 text-5xl mb-4">⚠️</div>
-          <h2 className="text-xl font-bold text-slate-800 mb-2">Ralat Sambungan</h2>
-          <p className="text-slate-600 mb-4">{errorMsg}</p>
-          <button onClick={() => window.location.reload()} className="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
-            Cuba Semula
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="flex flex-col h-screen bg-slate-50 font-sans text-slate-800 overflow-hidden">
-      
-      {/* CSS KHAS UNTUK CETAKAN */}
-      <style dangerouslySetInnerHTML={{ __html: `
         @media print {
-          nav, header, footer, button, .no-print {
-            display: none !important;
-          }
-          main {
-            padding: 0 !important;
-            margin: 0 !important;
-            overflow: visible !important;
-          }
-          .print-header {
-            display: flex !important;
-            align-items: center;
-            margin-bottom: 20px;
-            border-bottom: 2px solid #333;
-            padding-bottom: 10px;
-          }
-          .bg-white {
-            border: none !important;
-            box-shadow: none !important;
-          }
-          table {
-            width: 100% !important;
-            border-collapse: collapse !important;
-          }
-          th, td {
-            border: 1px solid #ddd !important;
-            padding: 8px !important;
-          }
-          tr {
-            page-break-inside: avoid;
-          }
+            .no-print { display: none !important; }
+            main { padding: 0 !important; margin: 0 !important; overflow: visible !important; }
+            .print-header { display: flex !important; align-items: center; margin-bottom: 20px; border-bottom: 2px solid #333; padding-bottom: 10px; }
+            .bg-white { border: none !important; box-shadow: none !important; }
+            table { width: 100% !important; border-collapse: collapse !important; }
+            th, td { border: 1px solid #ddd !important; padding: 8px !important; }
+            tr { page-break-inside: avoid; }
         }
         .print-header { display: none; }
-      `}} />
+        
+        /* Loading Animation */
+        .loader {
+            border-top-color: #3b82f6;
+            animation: spinner 1.5s linear infinite;
+        }
+        @keyframes spinner {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 h-screen overflow-hidden flex flex-col">
 
-      {/* HEADER UTAMA */}
-      <header className="bg-slate-800 text-white shadow-md p-4 flex justify-between items-center z-30 no-print">
-        <div className="flex items-center space-x-4">
-          <div className="bg-white p-1 rounded-lg">
-            {/* Logo SKPK Miri */}
-            <img 
-              src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Logo_of_the_Ministry_of_Education_of_Malaysia.svg/512px-Logo_of_the_Ministry_of_Education_of_Malaysia.svg.png" 
-              alt="Logo SKPK Miri" 
-              className="w-12 h-12 object-contain"
-            />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold tracking-tight">E-HEM SKPK MIRI</h1>
-            <p className="text-xs text-slate-400 uppercase tracking-widest hidden sm:block">Sistem Pengurusan Maklumat Murid</p>
-          </div>
+    <!-- Loading Screen -->
+    <div id="loading-screen" class="fixed inset-0 z-50 flex items-center justify-center bg-slate-50">
+        <div class="text-center">
+            <div class="loader ease-linear rounded-full border-4 border-t-4 border-slate-200 h-16 w-16 mb-4 mx-auto"></div>
+            <p class="text-lg font-medium text-slate-700">Sedang memuat data murid...</p>
         </div>
-        <div className="flex items-center space-x-3 bg-slate-700/50 px-3 py-1.5 rounded-full border border-slate-600">
-          <div className="h-7 w-7 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white shadow-inner">PK</div>
-          <span className="text-sm font-medium hidden sm:block">PK HEM</span>
-        </div>
-      </header>
-
-      {/* MENU KELAS DI ATAS */}
-      <nav className="bg-white border-b border-slate-200 shadow-sm z-20 no-print">
-        <div className="max-w-full overflow-x-auto scrollbar-hide py-3 px-4 md:px-6">
-          <div className="flex space-x-2 min-w-max">
-            {senaraiKelas.map((kelas) => (
-              <button
-                key={kelas}
-                onClick={() => handleClassMenuClick(kelas)}
-                className={`px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 border
-                  ${selectedClassMenu === kelas 
-                    ? 'bg-blue-600 text-white border-blue-600 shadow-md' 
-                    : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 hover:border-slate-300'}`}
-              >
-                {kelas}
-              </button>
-            ))}
-          </div>
-        </div>
-      </nav>
-
-      {/* KAWASAN KANDUNGAN UTAMA */}
-      <main className="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
-        <div className="max-w-7xl mx-auto">
-          
-          {/* Header untuk Cetakan Sahaja */}
-          <div className="print-header">
-             <div className="flex items-center space-x-6">
-               <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Logo_of_the_Ministry_of_Education_of_Malaysia.svg/512px-Logo_of_the_Ministry_of_Education_of_Malaysia.svg.png" className="w-20 h-20" alt="Logo KPM" />
-               <div className="text-left">
-                 <h1 className="text-2xl font-bold uppercase">Sekolah Kebangsaan Pendidikan Khas Miri</h1>
-                 <p className="text-lg">Senarai Maklumat Murid - {selectedClassMenu}</p>
-                 <p className="text-sm italic">Tarikh Cetakan: {new Date().toLocaleDateString('ms-MY')}</p>
-               </div>
-             </div>
-          </div>
-
-          <div className="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
-            <div>
-              <h2 className="text-2xl font-bold text-slate-800">Senarai Murid: {selectedClassMenu}</h2>
-              <p className="text-slate-500 mt-1 italic">Memaparkan {filteredStudents.length} rekod murid.</p>
-            </div>
-            
-            {/* Butang Download/Print */}
-            <button 
-              onClick={handlePrint}
-              className="flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg hover:shadow-emerald-200 no-print"
-            >
-              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z" />
-              </svg>
-              <span>Cetak / Simpan PDF</span>
-            </button>
-          </div>
-
-          {/* JADUAL DATA */}
-          <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-sm" id="table-to-print">
-                <thead>
-                  <tr className="bg-slate-50 border-b border-slate-200 text-slate-500">
-                    <th className="py-4 px-6 font-bold uppercase text-[10px] tracking-widest text-center w-16">Bil</th>
-                    <th className="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Nama Murid</th>
-                    <th className="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Kelas</th>
-                    <th className="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Tarikh Lahir</th>
-                    <th className="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Latar Belakang</th>
-                    <th className="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Ketidakupayaan</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {filteredStudents.length > 0 ? (
-                    filteredStudents.map((student, index) => (
-                      <tr key={student.id} className="hover:bg-blue-50/30 transition-all group">
-                        <td className="py-4 px-6 text-center text-slate-400 group-hover:text-blue-500 font-medium">{index + 1}</td>
-                        <td className="py-4 px-6">
-                          <span className="font-bold text-slate-800 text-base">{student.nama}</span>
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className="bg-blue-50 text-blue-700 py-1 px-3 rounded-full text-xs font-bold border border-blue-100">
-                            {student.kelas}
-                          </span>
-                        </td>
-                        <td className="py-4 px-6">
-                          <span className="text-slate-600 font-medium">{student.tarikhLahir}</span>
-                        </td>
-                        <td className="py-4 px-6">
-                          <div className="flex flex-col space-y-1">
-                            <div className="flex items-center text-slate-600 font-medium">
-                              <span className={`w-2 h-2 rounded-full mr-2 ${student.jantina === 'Perempuan' ? 'bg-pink-400' : 'bg-blue-400'}`}></span>
-                              {student.jantina}
-                            </div>
-                            <span className="text-xs font-medium text-slate-500">{student.agama} • {student.kaum}</span>
-                          </div>
-                        </td>
-                        <td className="py-4 px-6">
-                          {student.kategori.toLowerCase() === "tiada" || student.kategori === "-" || student.kategori === "" ? (
-                            <span className="text-slate-300 italic">Tiada maklumat</span>
-                          ) : (
-                            <div className="flex flex-col space-y-1">
-                              <span className="text-amber-700 font-bold text-xs uppercase tracking-tight">{student.kategori}</span>
-                              <span className="bg-rose-50 text-rose-600 py-0.5 px-2 rounded border border-rose-100 text-[11px] font-medium w-fit">
-                                {student.subkategori}
-                              </span>
-                            </div>
-                          )}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="6" className="py-20 text-center">
-                        <div className="flex flex-col items-center justify-center">
-                          <div className="bg-slate-100 p-4 rounded-full mb-4">
-                            <svg className="w-10 h-10 text-slate-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9.172 9.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                            </svg>
-                          </div>
-                          <p className="text-lg font-semibold text-slate-400">Tiada rekod murid dijumpai</p>
-                        </div>
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </div>
-          
-        </div>
-      </main>
-
-      {/* FOOTER */}
-      <footer className="bg-white border-t border-slate-200 py-3 px-6 text-center text-[10px] text-slate-400 uppercase tracking-widest font-semibold no-print">
-        © 2024 Unit Hal Ehwal Murid • Dashboard Nama Murid Digital • SKPK MIRI
-      </footer>
     </div>
-  );
-}
+
+    <!-- Header Utama -->
+    <header class="bg-slate-800 text-white shadow-md p-4 flex justify-between items-center z-30 no-print">
+        <div class="flex items-center space-x-4">
+            <div class="bg-white p-1 rounded-lg">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Logo_of_the_Ministry_of_Education_of_Malaysia.svg/512px-Logo_of_the_Ministry_of_Education_of_Malaysia.svg.png" 
+                     alt="Logo KPM" class="w-12 h-12 object-contain">
+            </div>
+            <div>
+                <h1 class="text-xl font-bold tracking-tight">E-HEM SKPK MIRI</h1>
+                <p class="text-xs text-slate-400 uppercase tracking-widest hidden sm:block">Sistem Pengurusan Maklumat Murid</p>
+            </div>
+        </div>
+        <div class="flex items-center space-x-3 bg-slate-700/50 px-3 py-1.5 rounded-full border border-slate-600">
+            <div class="h-7 w-7 rounded-full bg-blue-500 flex items-center justify-center text-xs font-bold text-white shadow-inner">PK</div>
+            <span class="text-sm font-medium hidden sm:block">PK HEM</span>
+        </div>
+    </header>
+
+    <!-- Menu Kelas -->
+    <nav class="bg-white border-b border-slate-200 shadow-sm z-20 no-print">
+        <div id="class-menu" class="max-w-full overflow-x-auto scrollbar-hide py-3 px-4 md:px-6 flex space-x-2 min-w-max">
+            <!-- Butang kelas akan dijana oleh JS -->
+        </div>
+    </nav>
+
+    <!-- Kandungan Utama -->
+    <main class="flex-1 overflow-auto p-4 md:p-6 lg:p-8">
+        <div class="max-w-7xl mx-auto">
+            
+            <!-- Header Cetakan -->
+            <div class="print-header">
+                <img src="https://upload.wikimedia.org/wikipedia/commons/thumb/0/03/Logo_of_the_Ministry_of_Education_of_Malaysia.svg/512px-Logo_of_the_Ministry_of_Education_of_Malaysia.svg.png" 
+                     class="w-20 h-20 mr-6" alt="Logo KPM">
+                <div>
+                    <h1 class="text-2xl font-bold uppercase">Sekolah Kebangsaan Pendidikan Khas Miri</h1>
+                    <p id="print-subtitle" class="text-lg">Senarai Maklumat Murid - Semua Kelas</p>
+                    <p id="print-date" class="text-sm italic"></p>
+                </div>
+            </div>
+
+            <div class="flex flex-col md:flex-row md:items-end justify-between mb-6 gap-4">
+                <div>
+                    <h2 id="display-title" class="text-2xl font-bold text-slate-800">Senarai Murid: Semua Kelas</h2>
+                    <p id="record-count" class="text-slate-500 mt-1 italic">Memuatkan rekod...</p>
+                </div>
+                <button onclick="window.print()" class="flex items-center justify-center space-x-2 bg-emerald-600 hover:bg-emerald-700 text-white px-6 py-2.5 rounded-xl font-bold transition-all shadow-lg hover:shadow-emerald-200 no-print">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 17h2a2 2 0 002-2v-4a2 2 0 00-2-2H5a2 2 0 00-2 2v4a2 2 0 002 2h2m2 4h6a2 2 0 002-2v-4a2 2 0 00-2-2H9a2 2 0 00-2 2v4a2 2 0 002 2zm8-12V5a2 2 0 00-2-2H9a2 2 0 00-2 2v4h10z"/></svg>
+                    <span>Cetak / Simpan PDF</span>
+                </button>
+            </div>
+
+            <!-- Jadual -->
+            <div class="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden mb-8">
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left text-sm">
+                        <thead>
+                            <tr class="bg-slate-50 border-b border-slate-200 text-slate-500">
+                                <th class="py-4 px-6 font-bold uppercase text-[10px] tracking-widest text-center w-16">Bil</th>
+                                <th class="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Nama Murid</th>
+                                <th class="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Kelas</th>
+                                <th class="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Tarikh Lahir</th>
+                                <th class="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Latar Belakang</th>
+                                <th class="py-4 px-6 font-bold uppercase text-[10px] tracking-widest">Ketidakupayaan</th>
+                            </tr>
+                        </thead>
+                        <tbody id="student-table-body" class="divide-y divide-slate-100">
+                            <!-- Data akan dijana oleh JS -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <footer class="bg-white border-t border-slate-200 py-3 px-6 text-center text-[10px] text-slate-400 uppercase tracking-widest font-semibold no-print">
+        © 2024 Unit Hal Ehwal Murid • Dashboard Nama Murid Digital • SKPK MIRI
+    </footer>
+
+    <script>
+        let allStudents = [];
+        let selectedClass = "Semua Kelas";
+
+        // Fungsi Parse CSV
+        function parseCSV(str) {
+            const arr = [];
+            let quote = false;
+            let row = 0, col = 0;
+            for (let c = 0; c < str.length; c++) {
+                let cc = str[c], nc = str[c+1];
+                arr[row] = arr[row] || [];
+                arr[row][col] = arr[row][col] || '';
+                if (cc === '"' && quote && nc === '"') { arr[row][col] += cc; ++c; continue; }
+                if (cc === '"') { quote = !quote; continue; }
+                if (cc === ',' && !quote) { ++col; continue; }
+                if (cc === '\r' && nc === '\n' && !quote) { ++row; col = 0; ++c; continue; }
+                if (cc === '\n' && !quote) { ++row; col = 0; continue; }
+                if (cc === '\r' && !quote) { ++row; col = 0; continue; }
+                arr[row][col] += cc;
+            }
+            return arr.filter(r => r.length > 0 && r.some(cell => cell.trim() !== ''));
+        }
+
+        async function init() {
+            try {
+                const url = "https://docs.google.com/spreadsheets/d/e/2PACX-1vRiXe9TdBW-DC6ZR4CI73lEfF6mD6o4mcbeZJ8LjemodSsnaxE8cswYIzJzZvf9yO5VmerrGj3r-mRQ/pub?gid=1679449775&single=true&output=csv";
+                const response = await fetch(url);
+                const csvText = await response.text();
+                const parsedRows = parseCSV(csvText);
+
+                if (parsedRows.length > 1) {
+                    const headers = parsedRows[0].map(h => h.toLowerCase().trim());
+                    const findIdx = (keywords) => {
+                        const idx = headers.findIndex(h => keywords.some(kw => h.includes(kw)));
+                        return idx !== -1 ? idx : null;
+                    };
+
+                    const indices = {
+                        nama: findIdx(['nama']),
+                        kelas: findIdx(['kelas', 'tingkatan', 'tahun']),
+                        dob: findIdx(['tarikh', 'lahir', 'dob']),
+                        jantina: findIdx(['jantina']),
+                        agama: findIdx(['agama']),
+                        kaum: findIdx(['kaum', 'bangsa']),
+                        kat: findIdx(['kategori', 'oku']),
+                        sub: findIdx(['subkategori'])
+                    };
+
+                    allStudents = parsedRows.slice(1).map((row, i) => ({
+                        id: i,
+                        nama: indices.nama !== null ? row[indices.nama]?.trim() : "-",
+                        kelas: indices.kelas !== null ? row[indices.kelas]?.trim() : "Tiada Kelas",
+                        dob: indices.dob !== null ? row[indices.dob]?.trim() : "-",
+                        jantina: indices.jantina !== null ? row[indices.jantina]?.trim() : "-",
+                        agama: indices.agama !== null ? row[indices.agama]?.trim() : "-",
+                        kaum: indices.kaum !== null ? row[indices.kaum]?.trim() : "-",
+                        kategori: indices.kat !== null ? row[indices.kat]?.trim() : "Tiada",
+                        subkategori: indices.sub !== null ? row[indices.sub]?.trim() : "Tiada"
+                    })).filter(s => s.nama && s.nama !== "-");
+
+                    renderMenu();
+                    renderTable();
+                }
+            } catch (e) {
+                console.error(e);
+                alert("Gagal memuat data. Sila semak sambungan internet anda.");
+            } finally {
+                document.getElementById('loading-screen').style.display = 'none';
+                document.getElementById('print-date').innerText = "Tarikh Cetakan: " + new Date().toLocaleDateString('ms-MY');
+            }
+        }
+
+        function renderMenu() {
+            const classes = ["Semua Kelas", ...new Set(allStudents.map(s => s.kelas))].sort();
+            const container = document.getElementById('class-menu');
+            container.innerHTML = classes.map(c => `
+                <button onclick="filterClass('${c}')" class="class-btn px-5 py-2 rounded-full text-sm font-medium transition-all duration-200 border 
+                    ${selectedClass === c ? 'bg-blue-600 text-white border-blue-600 shadow-md' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'}">
+                    ${c}
+                </button>
+            `).join('');
+        }
+
+        function filterClass(c) {
+            selectedClass = c;
+            renderMenu();
+            renderTable();
+            document.getElementById('display-title').innerText = "Senarai Murid: " + c;
+            document.getElementById('print-subtitle').innerText = "Senarai Maklumat Murid - " + c;
+        }
+
+        function renderTable() {
+            const filtered = allStudents.filter(s => selectedClass === "Semua Kelas" || s.kelas === selectedClass);
+            const tbody = document.getElementById('student-table-body');
+            document.getElementById('record-count').innerText = `Memaparkan ${filtered.length} rekod murid.`;
+
+            if (filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="py-20 text-center text-slate-400">Tiada data dijumpai</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map((s, i) => `
+                <tr class="hover:bg-blue-50/30 transition-all group">
+                    <td class="py-4 px-6 text-center text-slate-400 group-hover:text-blue-500 font-medium">${i + 1}</td>
+                    <td class="py-4 px-6"><span class="font-bold text-slate-800 text-base uppercase">${s.nama}</span></td>
+                    <td class="py-4 px-6"><span class="bg-blue-50 text-blue-700 py-1 px-3 rounded-full text-xs font-bold border border-blue-100">${s.kelas}</span></td>
+                    <td class="py-4 px-6 font-medium text-slate-600">${s.dob}</td>
+                    <td class="py-4 px-6">
+                        <div class="flex flex-col">
+                            <span class="flex items-center text-slate-600 font-medium">
+                                <span class="w-2 h-2 rounded-full mr-2 ${s.jantina === 'Perempuan' ? 'bg-pink-400' : 'bg-blue-400'}"></span>
+                                ${s.jantina}
+                            </span>
+                            <span class="text-[11px] text-slate-400 font-medium">${s.agama} • ${s.kaum}</span>
+                        </div>
+                    </td>
+                    <td class="py-4 px-6">
+                        <div class="flex flex-col">
+                            <span class="text-amber-700 font-bold text-[11px] uppercase">${s.kategori}</span>
+                            <span class="text-[10px] text-rose-500 font-medium italic">${s.subkategori}</span>
+                        </div>
+                    </td>
+                </tr>
+            `).join('');
+        }
+
+        window.onload = init;
+    </script>
+</body>
+</html>
